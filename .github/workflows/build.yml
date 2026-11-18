@@ -1,0 +1,46 @@
+name: build
+
+on:
+  push:
+    branches: [main, master]
+    tags: ['v*']
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 21
+
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: 8.14.3
+
+      - name: Сборка (внутри скачивается большой словарь)
+        run: gradle build --no-daemon
+
+      - name: Проверка, что словарь попал в jar
+        run: |
+          JAR=$(ls build/libs/rut9-*.jar | grep -v sources | head -n1)
+          echo "jar: $JAR"
+          unzip -l "$JAR" | grep -E "words_big.txt|chains.json" || echo "::warning::words_big.txt нет в jar, словарь не скачался"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: rut9-mod
+          path: build/libs/*.jar
+
+      - name: Релиз
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@v2
+        with:
+          files: build/libs/rut9-*.jar
