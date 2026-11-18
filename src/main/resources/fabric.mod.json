@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "id": "rut9",
+  "version": "${version}",
+  "name": "Русский T9",
+  "description": "Автокоррекция и предсказание слов на русском языке в чате Minecraft.",
+  "authors": ["rut9"],
+  "license": "MIT",
+  "environment": "client",
+  "entrypoints": { "client": ["dev.rut9.Rut9Client"] },
+  "mixins": ["rut9.mixins.json"],
+  "depends": {
+    "fabricloader": ">=0.16.14",
+    "minecraft": "~1.21.8",
+    "java": ">=21",
+    "fabric-api": "*"
+  }
+}

@@ -1,0 +1,74 @@
+plugins {
+    id 'fabric-loom' version '1.11-SNAPSHOT'
+}
+
+version = project.mod_version
+group = 'dev.rut9'
+base { archivesName = 'rut9' }
+
+dependencies {
+    minecraft "com.mojang:minecraft:${project.minecraft_version}"
+    mappings "net.fabricmc:yarn:${project.yarn_mappings}:v2"
+    modImplementation "net.fabricmc:fabric-loader:${project.loader_version}"
+    modImplementation "net.fabricmc.fabric-api:fabric-api:${project.fabric_version}"
+}
+
+// ---------------------------------------------------------------------------------------------
+// Большой словарь русского языка. Скачивается при сборке (на GitHub Actions сеть есть) из открытого
+// частотного списка hermitdave/FrequencyWords (лицензия содержимого CC BY-SA 4.0) и кладётся в jar как
+// assets/rut9/dict/words_big.txt. Если скачать не вышло — сборка НЕ падает, мод работает на встроенном словаре.
+//   -PdictLimit=400000   сколько слов сохранить в jar (по умолчанию 400000; в игре грузится dictMaxWords из конфига)
+//   -PdictUrl=...        другой источник (формат строк: «слово число»)
+// ---------------------------------------------------------------------------------------------
+def dictUrl   = (project.findProperty('dictUrl') ?: 'https://raw.githubusercontent.com/hermitdave/FrequencyWords/master/content/2018/ru/ru_full.txt').toString()
+def dictLimit = (project.findProperty('dictLimit') ?: '400000').toString().toInteger()
+def dictDir   = layout.buildDirectory.dir('generated/dict')
+
+tasks.register('downloadDictionary') {
+    def outFile = dictDir.get().file('assets/rut9/dict/words_big.txt').asFile
+    outputs.file(outFile)
+    outputs.upToDateWhen { outFile.exists() && outFile.length() > 100000 }
+    doLast {
+        outFile.parentFile.mkdirs()
+        int n = 0
+        try {
+            def conn = new URL(dictUrl).openConnection()
+            conn.connectTimeout = 20000
+            conn.readTimeout = 120000
+            outFile.withWriter('UTF-8') { w ->
+                conn.inputStream.withReader('UTF-8') { r ->
+                    String line
+                    while (n < dictLimit && (line = r.readLine()) != null) {
+                        def m = (line =~ /^([а-яё-]{2,30})\s+(\d+)\s*$/)
+                        if (m.matches() && m.group(2).toInteger() >= 3) {
+                            w.write(m.group(1) + ' ' + m.group(2) + '\n')
+                            n++
+                        }
+                    }
+                }
+            }
+            logger.lifecycle("Словарь: сохранено ${n} слов из ${dictUrl}")
+        } catch (Exception e) {
+            logger.warn("ВНИМАНИЕ: не удалось скачать словарь (${e}). Мод соберётся со встроенным маленьким словарём.")
+            outFile.text = ''
+        }
+    }
+}
+
+processResources {
+    dependsOn tasks.named('downloadDictionary')
+    from(dictDir)
+    inputs.property 'version', project.version
+    filesMatching('fabric.mod.json') { expand 'version': project.version }
+}
+
+tasks.withType(JavaCompile).configureEach {
+    options.encoding = 'UTF-8'
+    options.release = 21
+}
+
+java {
+    withSourcesJar()
+    sourceCompatibility = JavaVersion.VERSION_21
+    targetCompatibility = JavaVersion.VERSION_21
+}
